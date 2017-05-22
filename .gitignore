@@ -33,3 +33,5 @@ _testmain.go
 
 # Dev
 attic/
+/dustdevil
+/cmd/dustdevil/dustdevil
