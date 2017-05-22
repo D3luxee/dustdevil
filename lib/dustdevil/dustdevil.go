@@ -10,10 +10,12 @@
 package dustdevil
 
 import (
+	"encoding/json"
 	"log"
 	"time"
 
 	"github.com/mjolnir42/erebos"
+	"github.com/mjolnir42/legacy"
 	resty "gopkg.in/resty.v0"
 )
 
@@ -80,29 +82,58 @@ drainloop:
 
 // process is the handler for posting a MetricBatch
 func (d *DustDevil) process(msg []byte) {
-	// TODO - unmarshal MetricBatch
-	// TODO - convert JSON metrics
-	// TODO - strip stringmetrics
-	// TODO - marshal MetricBatch
+	var err error
 
+	// unmarshal message
+	batch := legacy.MetricBatch{}
+	if err = json.Unmarshal(msg, &batch); err != nil {
+		log.Println(d.Num, err)
+		close(d.Death)
+		<-d.Shutdown
+		return
+	}
+
+	// TODO - convert JSON metrics
+
+	// remove string metrics from the batch
+	if d.Config.DustDevil.StripStringMetrics {
+		for i := range batch.Data {
+			data := batch.Data[i]
+			data.StringMetrics = []legacy.StringMetric{}
+			batch.Data[i] = data
+		}
+	}
+
+	if msg, err = batch.MarshalJSON(); err != nil {
+		log.Println(d.Num, err)
+		close(d.Death)
+		<-d.Shutdown
+		return
+	}
+
+	// timeout must be reset before every request
 	r := d.client.SetTimeout(
-		// timeout must be reset before every request
 		time.Duration(d.Config.DustDevil.RequestTimeout) *
 			time.Millisecond).
 		R()
 
+	// make HTTP POST request
 	resp, err := r.SetBody(msg).
 		Post(d.Config.DustDevil.Endpoint)
-
+	// check HTTP response
 	if err != nil {
 		log.Println(d.Num, err)
 		// signal main to shut down
 		close(d.Death)
+		<-d.Shutdown
+		return
 	}
 	if resp.StatusCode() > 299 {
 		log.Println(d.Num, resp.Status())
 		// signal main to shut down
 		close(d.Death)
+		<-d.Shutdown
+		return
 	}
 	log.Println(d.Num, resp.Status())
 }
