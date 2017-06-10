@@ -24,19 +24,20 @@ func (m *MetricBatch) Split() []MetricSplit {
 		// collector go routine that will run indefinitly until the
 		// channel is closed
 		cwg := sync.WaitGroup{}
-		go func() {
-			cwg.Add(1)
-			for elem := range collect {
+		cwg.Add(1)
+		go func(c chan MetricSplit) {
+			for elem := range c {
 				res = append(res, elem)
 			}
-		}()
+			cwg.Done()
+		}(collect)
 
 		// feeder go routines that will convert the slices and push
 		// the result into channel collect
 		wg := sync.WaitGroup{}
 		// convert float metrics
-		go func() {
-			wg.Add(1)
+		wg.Add(1)
+		go func(c chan MetricSplit) {
 			split := MetricSplit{
 				AssetID: int64(m.HostID),
 				TS:      m.Data[iter].Time,
@@ -46,13 +47,14 @@ func (m *MetricBatch) Split() []MetricSplit {
 				split.Path = fMetric.Metric
 				split.Val.FlpVal = fMetric.Value
 				split.Tags = []string{fMetric.Subtype}
-				collect <- split
+				c <- split
 			}
-		}()
+			wg.Done()
+		}(collect)
 
 		// convert string metrics
-		go func() {
-			wg.Add(1)
+		wg.Add(1)
+		go func(c chan MetricSplit) {
 			split := MetricSplit{
 				AssetID: int64(m.HostID),
 				TS:      m.Data[iter].Time,
@@ -62,13 +64,14 @@ func (m *MetricBatch) Split() []MetricSplit {
 				split.Path = sMetric.Metric
 				split.Val.StrVal = sMetric.Value
 				split.Tags = []string{sMetric.Subtype}
-				collect <- split
+				c <- split
 			}
-		}()
+			wg.Done()
+		}(collect)
 
 		// convert integer metrics
-		go func() {
-			wg.Add(1)
+		wg.Add(1)
+		go func(c chan MetricSplit) {
 			split := MetricSplit{
 				AssetID: int64(m.HostID),
 				TS:      m.Data[iter].Time,
@@ -78,9 +81,10 @@ func (m *MetricBatch) Split() []MetricSplit {
 				split.Path = iMetric.Metric
 				split.Val.IntVal = iMetric.Value
 				split.Tags = []string{iMetric.Subtype}
-				collect <- split
+				c <- split
 			}
-		}()
+			wg.Done()
+		}(collect)
 		// wait for feeder
 		wg.Wait()
 		// close collect channel to unblock the collector

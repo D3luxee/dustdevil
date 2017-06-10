@@ -22,7 +22,7 @@ import (
 )
 
 // Debug set to true means unexpected input will be skipped and
-// spewed to StdErr. When set to false, it will panic instead.
+// spewed to StdErr. When set to false, it will return error instead.
 var Debug = false
 
 // MetricBatch represents a single request payload as sent by the
@@ -93,7 +93,9 @@ func (m *MetricBatch) UnmarshalJSON(data []byte) error {
 		metrics := hlp.Data[i].Metrics.(map[string]interface{})
 
 		for metric, val := range metrics {
-			parseMap(val.(map[string]interface{}), &data, metric)
+			if err := parseMap(val.(map[string]interface{}), &data, metric); err != nil {
+				return err
+			}
 		}
 
 		m.Data = append(m.Data, data)
@@ -118,21 +120,27 @@ type metricDataParse struct {
 
 // parseMap is used in MetricBatch.UnmarshalJSON to parse
 // encountered map[string]interface{} via reflection
-func parseMap(m map[string]interface{}, data *MetricData, metric string) {
+func parseMap(m map[string]interface{}, data *MetricData, metric string) error {
 loop:
 	for key, val := range m {
 		vval := reflect.ValueOf(&val).Elem()
 		switch vval.Elem().Kind().String() {
 		case `map`:
-			parseMap(val.(map[string]interface{}), data, metric)
+			if err := parseMap(val.(map[string]interface{}), data, metric); err != nil {
+				return err
+			}
 		case `slice`:
-			parseSlice(val.([]interface{}), data, metric)
+			if err := parseSlice(val.([]interface{}), data, metric, key); err != nil {
+				return err
+			}
 		case `string`:
 			parseMapString(key, val.(string), metric, data)
 		case `float64`:
 			parseMapFloat(key, metric, val.(float64), data)
 		case `int64`:
 			parseMapInt(key, metric, val.(int64), data)
+		case `bool`:
+			parseMapString(key, fmt.Sprintf("%t", val.(bool)), metric, data)
 		default:
 			msg := fmt.Sprintf("parseMap unknown type: %s",
 				vval.Elem().Kind().String())
@@ -141,22 +149,29 @@ loop:
 				spew.Fdump(os.Stderr, val)
 				continue loop
 			}
-			panic(msg)
+			return fmt.Errorf(msg)
 		}
 	}
+	return nil
 }
 
 // parseSlice is used in MetricBatch.UnmarshalJSON to parse
 // encountered []interface{} via reflection
-func parseSlice(s []interface{}, data *MetricData, metric string) {
+func parseSlice(s []interface{}, data *MetricData, metric, key string) error {
 loop:
 	for _, val := range s {
 		vval := reflect.ValueOf(&val).Elem()
 		switch vval.Elem().Kind().String() {
 		case `map`:
-			parseMap(val.(map[string]interface{}), data, metric)
+			if err := parseMap(val.(map[string]interface{}), data, metric); err != nil {
+				return err
+			}
 		case `slice`:
-			parseSlice(val.([]interface{}), data, metric)
+			if err := parseSlice(val.([]interface{}), data, metric, key); err != nil {
+				return err
+			}
+		case `string`:
+			parseSliceString(key, val.(string), metric, data)
 		default:
 			msg := fmt.Sprintf("parseSlice unknown type: %s",
 				vval.Elem().Kind().String())
@@ -165,14 +180,25 @@ loop:
 				spew.Fdump(os.Stderr, val)
 				continue loop
 			}
-			panic(msg)
+			return fmt.Errorf(msg)
 		}
 	}
+	return nil
 }
 
 // parseMapString decodes a single key/value pair key, val with a
 // string value
 func parseMapString(key, val, metric string, data *MetricData) {
+	s := StringMetric{
+		Metric:  metric,
+		Subtype: key,
+		Value:   val,
+	}
+	data.StringMetrics = append(data.StringMetrics, s)
+}
+
+// parseSliceString decodes a string value from a slice
+func parseSliceString(key, val, metric string, data *MetricData) {
 	s := StringMetric{
 		Metric:  metric,
 		Subtype: key,
@@ -294,7 +320,7 @@ fail:
 	return []byte{}, nil
 }
 
-// MarshalJSON ...
+// MarshalJSON assembles a JSON string for MetricData
 func (m *MetricData) MarshalJSON() ([]byte, error) {
 	var err error
 	var mBuf []byte
@@ -344,7 +370,7 @@ fail:
 	return []byte{}, err
 }
 
-// MarshalJSON ...
+// MarshalJSON assembles a JSON substring for FloatMetrics
 func (slice FloatMetrics) MarshalJSON() ([]byte, error) {
 	var lastMetric string
 	var j string
@@ -377,7 +403,7 @@ func (slice FloatMetrics) MarshalJSON() ([]byte, error) {
 	return []byte(j), nil
 }
 
-// MarshalJSON ...
+// MarshalJSON assembles a JSON substring for IntMetrics
 func (slice IntMetrics) MarshalJSON() ([]byte, error) {
 	var lastMetric string
 	var j string
@@ -410,7 +436,7 @@ func (slice IntMetrics) MarshalJSON() ([]byte, error) {
 	return []byte(j), nil
 }
 
-// MarshalJSON ...
+// MarshalJSON assembles a JSON substring for StringMetrics
 func (slice StringMetrics) MarshalJSON() ([]byte, error) {
 	var lastMetric string
 	var j string

@@ -20,14 +20,14 @@ type MetricSplit struct {
 	TS      time.Time
 	Type    string
 	Unit    string
-	Val     MetricSplitValue
+	Val     MetricValue
 	Tags    []string
 	Labels  map[string]string
 }
 
-// MetricSplitValue contains the value of MetricSplit with support
+// MetricValue contains the value of MetricSplit with support
 // for multiple value types
-type MetricSplitValue struct {
+type MetricValue struct {
 	IntVal int64
 	StrVal string
 	FlpVal float64
