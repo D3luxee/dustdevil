@@ -11,41 +11,31 @@ package dustdevil
 
 import (
 	"encoding/json"
-	"log"
 	"time"
 
+	"github.com/Sirupsen/logrus"
 	"github.com/mjolnir42/erebos"
 	"github.com/mjolnir42/legacy"
+	metrics "github.com/rcrowley/go-metrics"
 	resty "gopkg.in/resty.v0"
 )
+
+// Handlers is the registry of running application handlers
+var Handlers map[int]erebos.Handler
+
+func init() {
+	Handlers = make(map[int]erebos.Handler)
+}
 
 // DustDevil forwars received messages to an HTTP endpoint
 type DustDevil struct {
 	Num      int
-	Input    chan []byte
+	Input    chan *erebos.Transport
 	Shutdown chan struct{}
-	Death    chan struct{}
+	Death    chan error
 	Config   *erebos.Config
 	client   *resty.Client
-}
-
-// Start sets up the DustDevil application
-func (d *DustDevil) Start() {
-	d.client = resty.New()
-	d.client = d.client.SetRedirectPolicy(
-		resty.FlexibleRedirectPolicy(15)).
-		SetDisableWarn(true).
-		SetRetryCount(d.Config.DustDevil.RetryCount).
-		SetRetryWaitTime(
-			time.Duration(d.Config.DustDevil.RetryMinWaitTime)*
-				time.Millisecond).
-		SetRetryMaxWaitTime(
-			time.Duration(d.Config.DustDevil.RetryMaxWaitTime)*
-				time.Millisecond).
-		SetHeader(`Content-Type`, `application/json`).
-		SetContentLength(true)
-
-	d.run()
+	Metrics  *metrics.Registry
 }
 
 // run is the event loop for DustDevil
@@ -81,19 +71,17 @@ drainloop:
 }
 
 // process is the handler for posting a MetricBatch
-func (d *DustDevil) process(msg []byte) {
+func (d *DustDevil) process(msg *erebos.Transport) {
 	var err error
+	out := metrics.GetOrRegisterMeter(`.messages`, *d.Metrics)
 
 	// unmarshal message
 	batch := legacy.MetricBatch{}
-	if err = json.Unmarshal(msg, &batch); err != nil {
-		log.Println(d.Num, err)
-		close(d.Death)
+	if err = json.Unmarshal(msg.Value, &batch); err != nil {
+		d.Death <- err
 		<-d.Shutdown
 		return
 	}
-
-	// TODO - convert JSON metrics
 
 	// remove string metrics from the batch
 	if d.Config.DustDevil.StripStringMetrics {
@@ -104,9 +92,9 @@ func (d *DustDevil) process(msg []byte) {
 		}
 	}
 
-	if msg, err = batch.MarshalJSON(); err != nil {
-		log.Println(d.Num, err)
-		close(d.Death)
+	var outMsg []byte
+	if outMsg, err = batch.MarshalJSON(); err != nil {
+		d.Death <- err
 		<-d.Shutdown
 		return
 	}
@@ -118,24 +106,20 @@ func (d *DustDevil) process(msg []byte) {
 		R()
 
 	// make HTTP POST request
-	resp, err := r.SetBody(msg).
+	resp, err := r.SetBody(outMsg).
 		Post(d.Config.DustDevil.Endpoint)
 	// check HTTP response
 	if err != nil {
-		log.Println(d.Num, err)
 		// signal main to shut down
-		close(d.Death)
+		d.Death <- err
 		<-d.Shutdown
 		return
 	}
 	if resp.StatusCode() > 299 {
-		log.Println(d.Num, resp.Status())
-		// signal main to shut down
-		close(d.Death)
-		<-d.Shutdown
+		logrus.Warnf("HTTP response was: %s", resp.Status())
 		return
 	}
-	log.Println(d.Num, resp.Status())
+	out.Mark(1)
 }
 
 // vim: ts=4 sw=4 sts=4 noet fenc=utf-8 ffs=unix

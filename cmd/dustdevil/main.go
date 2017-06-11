@@ -9,134 +9,163 @@
 package main // import "github.com/mjolnir42/dustdevil/cmd/dustdevil"
 
 import (
-	"log"
+	"flag"
+	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"runtime"
-	"strings"
+	"syscall"
 	"time"
 
-	"github.com/Shopify/sarama"
+	"github.com/Sirupsen/logrus"
+	"github.com/client9/reopen"
 	"github.com/mjolnir42/dustdevil/lib/dustdevil"
 	"github.com/mjolnir42/erebos"
-	"github.com/mjolnir42/legacy"
-	"github.com/wvanbergen/kafka/consumergroup"
-	kazoo "github.com/wvanbergen/kazoo-go"
+	metrics "github.com/rcrowley/go-metrics"
 )
 
+func init() {
+	// Discard logspam from Zookeeper library
+	erebos.DisableZKLogger()
+
+	// set standard logger options
+	erebos.SetLogrusOptions()
+}
+
 func main() {
+	// parse command line flags
+	var cliConfPath string
+	flag.StringVar(&cliConfPath, `config`, `dustdevil.conf`,
+		`Configuration file location`)
+	flag.Parse()
+
+	// read runtime configuration
 	ddConf := erebos.Config{}
-	if err := ddConf.FromFile(`dustdevil.conf`); err != nil {
-		log.Fatalln(err)
+	if err := ddConf.FromFile(cliConfPath); err != nil {
+		logrus.Fatalf("Could not open configuration: %s", err)
 	}
 
-	kfkConf := consumergroup.NewConfig()
-	kfkConf.Offsets.Initial = sarama.OffsetNewest
-	kfkConf.Offsets.ProcessingTimeout = 10 * time.Second
-	kfkConf.Offsets.CommitInterval = time.Duration(
-		ddConf.Zookeeper.CommitInterval,
-	) * time.Millisecond
-	kfkConf.Offsets.ResetOffsets = ddConf.Zookeeper.ResetOffset
+	// setup logfile
+	if lfh, err := reopen.NewFileWriter(
+		filepath.Join(ddConf.Log.Path, ddConf.Log.File),
+	); err != nil {
+		logrus.Fatalf("Unable to open logfile: %s", err)
+	} else {
+		ddConf.Log.FH = lfh
+	}
+	logrus.SetOutput(ddConf.Log.FH)
+	logrus.Infoln(`Starting DUSTDEVIL...`)
 
-	var zkNodes []string
-	zkNodes, kfkConf.Zookeeper.Chroot = kazoo.ParseConnectionString(
-		ddConf.Zookeeper.Connect,
-	)
-
-	consumerTopic := strings.Split(ddConf.Kafka.ConsumerTopics, `,`)
-	consumer, err := consumergroup.JoinConsumerGroup(
-		ddConf.Kafka.ConsumerGroup,
-		consumerTopic,
-		zkNodes,
-		kfkConf,
-	)
-	if err != nil {
-		log.Fatalln(err)
+	// signal handler will reopen logfile on USR2 if requested
+	if ddConf.Log.Rotate {
+		sigChanLogRotate := make(chan os.Signal, 1)
+		signal.Notify(sigChanLogRotate, syscall.SIGUSR2)
+		go erebos.Logrotate(sigChanLogRotate, ddConf)
 	}
 
+	// setup signal receiver for graceful shutdown
 	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt, os.Kill)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 
-	// this channel is closed by the handler on error
-	handlerDeath := make(chan struct{})
+	// this channel is used by the handlers on error
+	handlerDeath := make(chan error)
+	// this channel is used to signal the consumer to stop
+	consumerShutdown := make(chan struct{})
+	// this channel will be closed by the consumer
+	consumerExit := make(chan struct{})
 
-	offsets := make(map[string]map[int32]int64)
-	handlers := make(map[int]dustdevil.DustDevil)
+	// setup metrics
+	pfxRegistry := metrics.NewPrefixedRegistry(`dustdevil`)
+	metrics.NewRegisteredMeter(`.messages`, pfxRegistry)
+	metricShutdown := make(chan struct{})
 
+	go func(r *metrics.Registry) {
+		beat := time.NewTicker(10 * time.Second)
+		for {
+			select {
+			case <-beat.C:
+				(*r).Each(printMetrics)
+			case <-metricShutdown:
+				break
+			}
+		}
+	}(&pfxRegistry)
+
+	// start application handlers
 	for i := 0; i < runtime.NumCPU(); i++ {
 		h := dustdevil.DustDevil{
 			Num: i,
-			Input: make(chan []byte,
+			Input: make(chan *erebos.Transport,
 				ddConf.DustDevil.HandlerQueueLength),
 			Shutdown: make(chan struct{}),
 			Death:    handlerDeath,
 			Config:   &ddConf,
+			Metrics:  &pfxRegistry,
 		}
-		handlers[i] = h
+		dustdevil.Handlers[i] = &h
 		go h.Start()
+		logrus.Infof("Launched Dustdevil handler #%d", i)
 	}
 
-	fault := false
-	heartbeat := time.Tick(1 * time.Second)
-	modulus := runtime.NumCPU()
+	// start kafka consumer
+	go erebos.Consumer(
+		&ddConf,
+		dustdevil.Dispatch,
+		consumerShutdown,
+		consumerExit,
+		handlerDeath,
+	)
 
+	// the main loop
+	fault := false
 runloop:
 	for {
 		select {
 		case <-c:
-			for i := range handlers {
-				close(handlers[i].Shutdown)
-			}
+			logrus.Infoln(`Received shutdown signal`)
 			break runloop
-		case <-handlerDeath:
-			for i := range handlers {
-				close(handlers[i].Shutdown)
-			}
-			break runloop
-		case <-heartbeat:
-			continue runloop
-		case e := <-consumer.Errors():
-			log.Println(e)
+		case err := <-handlerDeath:
+			logrus.Errorf("Handler died: %s", err.Error())
 			fault = true
 			break runloop
-		case msg := <-consumer.Messages():
-			if offsets[msg.Topic] == nil {
-				offsets[msg.Topic] = make(map[int32]int64)
-			}
-
-			if offsets[msg.Topic][msg.Partition] != 0 &&
-				offsets[msg.Topic][msg.Partition] != msg.Offset-1 {
-				// incorrect offset
-				log.Printf("Unexpected offset on %s:%d. "+
-					"Expected %d, found %d.\n",
-					msg.Topic,
-					msg.Partition,
-					offsets[msg.Topic][msg.Partition]+1,
-					msg.Offset,
-				)
-			}
-
-			// send all messages from the same host to the same handler
-			// to keep the ordering intact
-			hostID, err := legacy.PeekHostID(msg.Value)
-			if err != nil {
-				log.Println(err)
-				fault = true
-				break runloop
-			}
-			handlers[hostID%modulus].Input <- msg.Value
-
-			offsets[msg.Topic][msg.Partition] = msg.Offset
-			consumer.CommitUpto(msg)
 		}
 	}
-	if err := consumer.Close(); err != nil {
-		log.Println(`Error closing the consumer:`, err)
+
+	// close all handlers
+	close(metricShutdown)
+	close(consumerShutdown)
+	<-consumerExit // not safe to close InputChannel before consumer is gone
+	for i := range dustdevil.Handlers {
+		close(dustdevil.Handlers[i].ShutdownChannel())
+		close(dustdevil.Handlers[i].InputChannel())
 	}
+
+	// read all additional handler errors if required
+drainloop:
+	for {
+		select {
+		case err := <-handlerDeath:
+			logrus.Errorf("Handler died: %s", err.Error())
+		case <-time.After(time.Millisecond * 10):
+			break drainloop
+		}
+	}
+
+	// give goroutines that were blocked on handlerDeath channel
+	// a chance to exit
+	<-time.After(time.Millisecond * 10)
+	logrus.Infoln(`DUSTDEVIL shutdown complete`)
 	if fault {
-		// let the service supervisor know the shutdown was not
-		// planned
 		os.Exit(1)
+	}
+}
+
+func printMetrics(metric string, v interface{}) {
+	switch v.(type) {
+	case *metrics.StandardMeter:
+		value := v.(*metrics.StandardMeter)
+		fmt.Fprintf(os.Stderr, "%s.avg.rate.1min: %f\n", metric, value.Rate1())
 	}
 }
 
