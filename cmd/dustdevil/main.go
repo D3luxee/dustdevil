@@ -10,6 +10,7 @@ package main // import "github.com/mjolnir42/dustdevil/cmd/dustdevil"
 
 import (
 	"flag"
+	"fmt"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -76,7 +77,14 @@ func main() {
 	consumerExit := make(chan struct{})
 
 	// setup metrics
-	pfxRegistry := metrics.NewPrefixedRegistry(`/dustdevil`)
+	var metricPrefix string
+	switch ddConf.Misc.InstanceName {
+	case ``:
+		metricPrefix = `/dustdevil`
+	default:
+		metricPrefix = fmt.Sprintf("/dustdevil/%s", ddConf.Misc.InstanceName)
+	}
+	pfxRegistry := metrics.NewPrefixedRegistry(metricPrefix)
 	metrics.NewRegisteredMeter(`/messages`, pfxRegistry)
 
 	ms := legacy.NewMetricSocket(&ddConf, &pfxRegistry, handlerDeath, dustdevil.FormatMetrics)
