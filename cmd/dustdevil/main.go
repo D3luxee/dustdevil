@@ -10,7 +10,6 @@ package main // import "github.com/mjolnir42/dustdevil/cmd/dustdevil"
 
 import (
 	"flag"
-	"fmt"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -22,6 +21,7 @@ import (
 	"github.com/client9/reopen"
 	"github.com/mjolnir42/dustdevil/lib/dustdevil"
 	"github.com/mjolnir42/erebos"
+	"github.com/mjolnir42/legacy"
 	metrics "github.com/rcrowley/go-metrics"
 )
 
@@ -76,21 +76,14 @@ func main() {
 	consumerExit := make(chan struct{})
 
 	// setup metrics
-	pfxRegistry := metrics.NewPrefixedRegistry(`dustdevil`)
-	metrics.NewRegisteredMeter(`.messages`, pfxRegistry)
-	metricShutdown := make(chan struct{})
+	pfxRegistry := metrics.NewPrefixedRegistry(`/dustdevil`)
+	metrics.NewRegisteredMeter(`/messages`, pfxRegistry)
 
-	go func(r *metrics.Registry) {
-		beat := time.NewTicker(10 * time.Second)
-		for {
-			select {
-			case <-beat.C:
-				(*r).Each(printMetrics)
-			case <-metricShutdown:
-				break
-			}
-		}
-	}(&pfxRegistry)
+	ms := legacy.NewMetricSocket(&ddConf, &pfxRegistry, handlerDeath, dustdevil.FormatMetrics)
+	if ddConf.Misc.ProduceMetrics {
+		logrus.Info(`Launched metrics producer socket`)
+		go ms.Run()
+	}
 
 	// start application handlers
 	for i := 0; i < runtime.NumCPU(); i++ {
@@ -122,6 +115,8 @@ func main() {
 runloop:
 	for {
 		select {
+		case err := <-ms.Errors:
+			logrus.Errorf("Socket error: %s", err.Error())
 		case <-c:
 			logrus.Infoln(`Received shutdown signal`)
 			break runloop
@@ -133,7 +128,7 @@ runloop:
 	}
 
 	// close all handlers
-	close(metricShutdown)
+	close(ms.Shutdown)
 	close(consumerShutdown)
 	<-consumerExit // not safe to close InputChannel before consumer is gone
 	for i := range dustdevil.Handlers {
@@ -145,6 +140,8 @@ runloop:
 drainloop:
 	for {
 		select {
+		case err := <-ms.Errors:
+			logrus.Errorf("Socket error: %s", err.Error())
 		case err := <-handlerDeath:
 			logrus.Errorf("Handler died: %s", err.Error())
 		case <-time.After(time.Millisecond * 10):
@@ -158,14 +155,6 @@ drainloop:
 	logrus.Infoln(`DUSTDEVIL shutdown complete`)
 	if fault {
 		os.Exit(1)
-	}
-}
-
-func printMetrics(metric string, v interface{}) {
-	switch v.(type) {
-	case *metrics.StandardMeter:
-		value := v.(*metrics.StandardMeter)
-		fmt.Fprintf(os.Stderr, "%s.avg.rate.1min: %f\n", metric, value.Rate1())
 	}
 }
 

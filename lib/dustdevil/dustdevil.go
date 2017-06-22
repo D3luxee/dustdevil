@@ -73,7 +73,7 @@ drainloop:
 // process is the handler for posting a MetricBatch
 func (d *DustDevil) process(msg *erebos.Transport) {
 	var err error
-	out := metrics.GetOrRegisterMeter(`.messages`, *d.Metrics)
+	out := metrics.GetOrRegisterMeter(`/messages`, *d.Metrics)
 
 	// unmarshal message
 	batch := legacy.MetricBatch{}
