@@ -78,6 +78,7 @@ func (d *DustDevil) process(msg *erebos.Transport) {
 	// unmarshal message
 	batch := legacy.MetricBatch{}
 	if err = json.Unmarshal(msg.Value, &batch); err != nil {
+		go d.commit(msg)
 		d.Death <- err
 		<-d.Shutdown
 		return
@@ -94,6 +95,7 @@ func (d *DustDevil) process(msg *erebos.Transport) {
 
 	var outMsg []byte
 	if outMsg, err = batch.MarshalJSON(); err != nil {
+		go d.commit(msg)
 		d.Death <- err
 		<-d.Shutdown
 		return
@@ -110,6 +112,7 @@ func (d *DustDevil) process(msg *erebos.Transport) {
 		Post(d.Config.DustDevil.Endpoint)
 	// check HTTP response
 	if err != nil {
+		go d.commit(msg)
 		// signal main to shut down
 		d.Death <- err
 		<-d.Shutdown
@@ -120,6 +123,16 @@ func (d *DustDevil) process(msg *erebos.Transport) {
 		return
 	}
 	out.Mark(1)
+	go d.commit(msg)
+}
+
+// commit marks a message as fully processed
+func (d *DustDevil) commit(msg *erebos.Transport) {
+	msg.Commit <- &erebos.Commit{
+		Topic:     msg.Topic,
+		Partition: msg.Partition,
+		Offset:    msg.Offset,
+	}
 }
 
 // vim: ts=4 sw=4 sts=4 noet fenc=utf-8 ffs=unix
