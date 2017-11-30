@@ -1,0 +1,43 @@
+# dustdevil example configuration
+log: {
+        path: '/srv/dustdevil/instance/log'
+        file: 'dustdevil.log'
+        rotate.on.usr2: true
+        debug: false
+}
+zookeeper: {
+        commit.ms: 2000
+        connect.string: 'localhost:2181/kafka'
+        reset.offset.on.startup: false
+}
+kafka: {
+        consumer.group.name: 'dustdevil_instance'
+        consumer.topics: 'mistral'
+        consumer.offset.strategy: 'newest'
+        keepalive.ms: 4200
+}
+legacy: {
+        # path to the metric socket
+        socket.path: '/srv/dustdevil/instance/run/metrics.seqpacket'
+}
+misc: {
+        # produce metrics on metricsocket
+        produce.metrics: true
+        # instance name to include in produced metrics
+        instance.name: ''
+}
+dustdevil: {
+        # internal handler queue length
+        handler.queue.length: 16
+        api.endpoint: 'http://localhost:8088/metrics'
+        # api retry count
+        post.request.retry.count: 4
+        # minimum wait time between retries
+        retry.min.wait.time.ms: 500
+        # maximum wait time between retries
+        retry.max.wait.time.ms: 4200
+        # post request timeout
+        request.timeout.ms: 1600
+        # do not forward string metrics
+        strip.string.metrics: true
+}
