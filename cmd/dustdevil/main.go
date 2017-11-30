@@ -103,6 +103,7 @@ func main() {
 	metrics.NewRegisteredMeter(`/messages`, pfxRegistry)
 
 	ms := legacy.NewMetricSocket(&ddConf, &pfxRegistry, handlerDeath, dustdevil.FormatMetrics)
+	ms.SetDebugFormatter(dustdevil.DebugFormatMetrics)
 	if ddConf.Misc.ProduceMetrics {
 		logrus.Info(`Launched metrics producer socket`)
 		go ms.Run()

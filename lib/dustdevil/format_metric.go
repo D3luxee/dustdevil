@@ -10,6 +10,7 @@ package dustdevil // import "github.com/mjolnir42/dustdevil/lib/dustdevil"
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/mjolnir42/legacy"
 	metrics "github.com/rcrowley/go-metrics"
@@ -29,6 +30,19 @@ func FormatMetrics(batch *legacy.PluginMetricBatch) func(string, interface{}) {
 					FlpVal: value.Rate1(),
 				},
 			})
+		}
+	}
+}
+
+// DebugFormatMetrics is the formatting function to print DustDevil metrics
+// on STDERR
+func DebugFormatMetrics(_ *legacy.PluginMetricBatch) func(string, interface{}) {
+	return func(metric string, v interface{}) {
+		switch v.(type) {
+		case *metrics.StandardMeter:
+			value := v.(*metrics.StandardMeter)
+			fmt.Fprintf(os.Stderr, "%s/avg/rate/1min: %f\n",
+				metric, value.Rate1())
 		}
 	}
 }

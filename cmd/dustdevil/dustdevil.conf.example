@@ -19,6 +19,10 @@ kafka: {
 legacy: {
         # path to the metric socket
         socket.path: '/srv/dustdevil/instance/run/metrics.seqpacket'
+        # print metrics on STDERR
+        metrics.debug.stderr: false
+        # print metrics every n seconds
+        metrics.debug.frequency.seconds: 30
 }
 misc: {
         # produce metrics on metricsocket
