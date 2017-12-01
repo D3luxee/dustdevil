@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/Sirupsen/logrus"
+	"github.com/mjolnir42/dustdevil/lib/limit"
 	"github.com/mjolnir42/erebos"
 	"github.com/mjolnir42/legacy"
 	metrics "github.com/rcrowley/go-metrics"
@@ -36,6 +37,7 @@ type DustDevil struct {
 	Config   *erebos.Config
 	client   *resty.Client
 	Metrics  *metrics.Registry
+	Limit    *limit.Limit
 }
 
 // run is the event loop for DustDevil
@@ -52,7 +54,7 @@ runloop:
 				// closed shutdown channel soon...
 				continue runloop
 			}
-			d.process(msg)
+			go d.process(msg)
 		}
 	}
 	// compiler: unreachable code
@@ -100,6 +102,10 @@ func (d *DustDevil) process(msg *erebos.Transport) {
 		<-d.Shutdown
 		return
 	}
+
+	// acquire resource limit before issuing the POST request
+	d.Limit.Start()
+	defer d.Limit.Done()
 
 	// timeout must be reset before every request
 	r := d.client.SetTimeout(

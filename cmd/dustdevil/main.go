@@ -21,6 +21,7 @@ import (
 	"github.com/Sirupsen/logrus"
 	"github.com/client9/reopen"
 	"github.com/mjolnir42/dustdevil/lib/dustdevil"
+	"github.com/mjolnir42/dustdevil/lib/limit"
 	"github.com/mjolnir42/erebos"
 	"github.com/mjolnir42/legacy"
 	metrics "github.com/rcrowley/go-metrics"
@@ -109,6 +110,9 @@ func main() {
 		go ms.Run()
 	}
 
+	// acquire shared concurrency limit
+	lim := limit.NewLimit(ddConf.DustDevil.ConcurrencyLimit)
+
 	// start application handlers
 	for i := 0; i < runtime.NumCPU(); i++ {
 		h := dustdevil.DustDevil{
@@ -119,6 +123,7 @@ func main() {
 			Death:    handlerDeath,
 			Config:   &ddConf,
 			Metrics:  &pfxRegistry,
+			Limit:    lim,
 		}
 		dustdevil.Handlers[i] = &h
 		go h.Start()

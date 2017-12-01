@@ -44,4 +44,7 @@ dustdevil: {
         request.timeout.ms: 1600
         # do not forward string metrics
         strip.string.metrics: true
+        # limit the number of concurrent POST requests.
+        # 0 is unlimited.
+        post.request.concurrency.limit: 128
 }
