@@ -42,6 +42,8 @@ type DustDevil struct {
 
 // run is the event loop for DustDevil
 func (d *DustDevil) run() {
+	in := metrics.GetOrRegisterMeter(`/input/messages.per.second`, *d.Metrics)
+
 runloop:
 	for {
 		select {
@@ -54,6 +56,7 @@ runloop:
 				// closed shutdown channel soon...
 				continue runloop
 			}
+			in.Mark(1)
 			go d.process(msg)
 		}
 	}
@@ -67,6 +70,7 @@ drainloop:
 				// closed channel is empty
 				break drainloop
 			}
+			in.Mark(1)
 			d.process(msg)
 		}
 	}
@@ -75,7 +79,7 @@ drainloop:
 // process is the handler for posting a MetricBatch
 func (d *DustDevil) process(msg *erebos.Transport) {
 	var err error
-	out := metrics.GetOrRegisterMeter(`/messages`, *d.Metrics)
+	out := metrics.GetOrRegisterMeter(`/output/messages.per.second`, *d.Metrics)
 
 	// unmarshal message
 	batch := legacy.MetricBatch{}

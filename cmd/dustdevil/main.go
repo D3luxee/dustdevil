@@ -101,7 +101,8 @@ func main() {
 		metricPrefix = fmt.Sprintf("/dustdevil/%s", ddConf.Misc.InstanceName)
 	}
 	pfxRegistry := metrics.NewPrefixedRegistry(metricPrefix)
-	metrics.NewRegisteredMeter(`/messages`, pfxRegistry)
+	metrics.NewRegisteredMeter(`/input/messages.per.second`, pfxRegistry)
+	metrics.NewRegisteredMeter(`/output/messages.per.second`, pfxRegistry)
 
 	ms := legacy.NewMetricSocket(&ddConf, &pfxRegistry, handlerDeath, dustdevil.FormatMetrics)
 	ms.SetDebugFormatter(dustdevil.DebugFormatMetrics)
