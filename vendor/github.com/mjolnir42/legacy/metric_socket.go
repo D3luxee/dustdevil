@@ -121,7 +121,6 @@ func (s *MetricSocket) Run() {
 					// called on a closed socket, ie. inside the shutdown
 					// path
 					if op.Op == `accept` && op.Err.Error() == `use of closed network connection` {
-						close(s.Shutdown)
 						break acceptloop
 					}
 				}
