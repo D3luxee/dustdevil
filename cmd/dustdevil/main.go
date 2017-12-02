@@ -21,9 +21,9 @@ import (
 	"github.com/Sirupsen/logrus"
 	"github.com/client9/reopen"
 	"github.com/mjolnir42/dustdevil/lib/dustdevil"
-	"github.com/mjolnir42/dustdevil/lib/limit"
 	"github.com/mjolnir42/erebos"
 	"github.com/mjolnir42/legacy"
+	"github.com/mjolnir42/limit"
 	metrics "github.com/rcrowley/go-metrics"
 )
 
