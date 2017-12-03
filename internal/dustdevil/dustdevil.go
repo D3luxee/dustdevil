@@ -6,8 +6,8 @@
  * that can be found in the LICENSE file.
  */
 
-// Package dustdevil implements the DustDevil application
-package dustdevil
+// Package dustdevil implements the DustDevil metric forwarder
+package dustdevil // import "github.com/mjolnir42/dustdevil/internal/dustdevil"
 
 import (
 	"encoding/json"

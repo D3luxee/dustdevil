@@ -21,7 +21,7 @@ import (
 	"github.com/Sirupsen/logrus"
 	"github.com/client9/reopen"
 	"github.com/mjolnir42/delay"
-	"github.com/mjolnir42/dustdevil/lib/dustdevil"
+	"github.com/mjolnir42/dustdevil/internal/dustdevil"
 	"github.com/mjolnir42/erebos"
 	"github.com/mjolnir42/legacy"
 	"github.com/mjolnir42/limit"
