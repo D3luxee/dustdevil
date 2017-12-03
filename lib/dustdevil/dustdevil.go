@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/Sirupsen/logrus"
+	"github.com/mjolnir42/delay"
 	"github.com/mjolnir42/erebos"
 	"github.com/mjolnir42/legacy"
 	"github.com/mjolnir42/limit"
@@ -38,6 +39,7 @@ type DustDevil struct {
 	client   *resty.Client
 	Metrics  *metrics.Registry
 	Limit    *limit.Limit
+	delay    *delay.Delay
 }
 
 // run is the event loop for DustDevil
@@ -57,7 +59,11 @@ runloop:
 				continue runloop
 			}
 			in.Mark(1)
-			go d.process(msg)
+			d.delay.Use()
+			go func() {
+				defer d.delay.Done()
+				d.process(msg)
+			}()
 		}
 	}
 	// compiler: unreachable code
@@ -74,6 +80,7 @@ drainloop:
 			d.process(msg)
 		}
 	}
+	d.delay.Wait()
 }
 
 // process is the handler for posting a MetricBatch
@@ -84,7 +91,11 @@ func (d *DustDevil) process(msg *erebos.Transport) {
 	// unmarshal message
 	batch := legacy.MetricBatch{}
 	if err = json.Unmarshal(msg.Value, &batch); err != nil {
-		go d.commit(msg)
+		d.delay.Use()
+		go func() {
+			defer d.delay.Done()
+			d.commit(msg)
+		}()
 		d.Death <- err
 		<-d.Shutdown
 		return
@@ -101,7 +112,11 @@ func (d *DustDevil) process(msg *erebos.Transport) {
 
 	var outMsg []byte
 	if outMsg, err = batch.MarshalJSON(); err != nil {
-		go d.commit(msg)
+		d.delay.Use()
+		go func() {
+			defer d.delay.Done()
+			d.commit(msg)
+		}()
 		d.Death <- err
 		<-d.Shutdown
 		return
@@ -122,7 +137,11 @@ func (d *DustDevil) process(msg *erebos.Transport) {
 		Post(d.Config.DustDevil.Endpoint)
 	// check HTTP response
 	if err != nil {
-		go d.commit(msg)
+		d.delay.Use()
+		go func() {
+			defer d.delay.Done()
+			d.commit(msg)
+		}()
 		// signal main to shut down
 		d.Death <- err
 		<-d.Shutdown
@@ -133,7 +152,11 @@ func (d *DustDevil) process(msg *erebos.Transport) {
 		return
 	}
 	out.Mark(1)
-	go d.commit(msg)
+	d.delay.Use()
+	go func() {
+		defer d.delay.Done()
+		d.commit(msg)
+	}()
 }
 
 // commit marks a message as fully processed

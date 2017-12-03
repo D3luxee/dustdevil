@@ -20,6 +20,7 @@ import (
 
 	"github.com/Sirupsen/logrus"
 	"github.com/client9/reopen"
+	"github.com/mjolnir42/delay"
 	"github.com/mjolnir42/dustdevil/lib/dustdevil"
 	"github.com/mjolnir42/erebos"
 	"github.com/mjolnir42/legacy"
@@ -45,40 +46,42 @@ func main() {
 	)
 	flag.StringVar(&cliConfPath, `config`, `dustdevil.conf`,
 		`Configuration file location`)
-	flag.BoolVar(&versionFlag, `version`, false, `Print version information`)
+	flag.BoolVar(&versionFlag, `version`, false,
+		`Print version information`)
 	flag.Parse()
 
 	// only provide version information if --version was specified
 	if versionFlag {
 		fmt.Fprintln(os.Stderr, `DustDevil Metric Forwarder`)
-		fmt.Fprintf(os.Stderr, "Version  : %s-%s\n", builddate, shorthash)
+		fmt.Fprintf(os.Stderr, "Version  : %s-%s\n", builddate,
+			shorthash)
 		fmt.Fprintf(os.Stderr, "Git Hash : %s\n", githash)
 		fmt.Fprintf(os.Stderr, "Timestamp: %s\n", buildtime)
 		os.Exit(0)
 	}
 
 	// read runtime configuration
-	ddConf := erebos.Config{}
-	if err := ddConf.FromFile(cliConfPath); err != nil {
+	conf := erebos.Config{}
+	if err := conf.FromFile(cliConfPath); err != nil {
 		logrus.Fatalf("Could not open configuration: %s", err)
 	}
 
 	// setup logfile
 	if lfh, err := reopen.NewFileWriter(
-		filepath.Join(ddConf.Log.Path, ddConf.Log.File),
+		filepath.Join(conf.Log.Path, conf.Log.File),
 	); err != nil {
 		logrus.Fatalf("Unable to open logfile: %s", err)
 	} else {
-		ddConf.Log.FH = lfh
+		conf.Log.FH = lfh
 	}
-	logrus.SetOutput(ddConf.Log.FH)
+	logrus.SetOutput(conf.Log.FH)
 	logrus.Infoln(`Starting DUSTDEVIL...`)
 
 	// signal handler will reopen logfile on USR2 if requested
-	if ddConf.Log.Rotate {
+	if conf.Log.Rotate {
 		sigChanLogRotate := make(chan os.Signal, 1)
 		signal.Notify(sigChanLogRotate, syscall.SIGUSR2)
-		go erebos.Logrotate(sigChanLogRotate, ddConf)
+		go erebos.Logrotate(sigChanLogRotate, conf)
 	}
 
 	// setup signal receiver for graceful shutdown
@@ -92,53 +95,72 @@ func main() {
 	// this channel will be closed by the consumer
 	consumerExit := make(chan struct{})
 
+	// setup goroutine waiting policy
+	waitdelay := delay.NewDelay()
+
 	// setup metrics
 	var metricPrefix string
-	switch ddConf.Misc.InstanceName {
+	switch conf.Misc.InstanceName {
 	case ``:
 		metricPrefix = `/dustdevil`
 	default:
-		metricPrefix = fmt.Sprintf("/dustdevil/%s", ddConf.Misc.InstanceName)
+		metricPrefix = fmt.Sprintf("/dustdevil/%s",
+			conf.Misc.InstanceName)
 	}
 	pfxRegistry := metrics.NewPrefixedRegistry(metricPrefix)
-	metrics.NewRegisteredMeter(`/input/messages.per.second`, pfxRegistry)
-	metrics.NewRegisteredMeter(`/output/messages.per.second`, pfxRegistry)
+	metrics.NewRegisteredMeter(`/input/messages.per.second`,
+		pfxRegistry)
+	metrics.NewRegisteredMeter(`/output/messages.per.second`,
+		pfxRegistry)
 
-	ms := legacy.NewMetricSocket(&ddConf, &pfxRegistry, handlerDeath, dustdevil.FormatMetrics)
+	ms := legacy.NewMetricSocket(&conf, &pfxRegistry, handlerDeath,
+		dustdevil.FormatMetrics)
 	ms.SetDebugFormatter(dustdevil.DebugFormatMetrics)
-	if ddConf.Misc.ProduceMetrics {
+	if conf.Misc.ProduceMetrics {
 		logrus.Info(`Launched metrics producer socket`)
-		go ms.Run()
+		waitdelay.Use()
+		go func() {
+			defer waitdelay.Done()
+			ms.Run()
+		}()
 	}
 
 	// acquire shared concurrency limit
-	lim := limit.NewLimit(ddConf.DustDevil.ConcurrencyLimit)
+	lim := limit.NewLimit(conf.DustDevil.ConcurrencyLimit)
 
 	// start application handlers
 	for i := 0; i < runtime.NumCPU(); i++ {
 		h := dustdevil.DustDevil{
 			Num: i,
 			Input: make(chan *erebos.Transport,
-				ddConf.DustDevil.HandlerQueueLength),
+				conf.DustDevil.HandlerQueueLength),
 			Shutdown: make(chan struct{}),
 			Death:    handlerDeath,
-			Config:   &ddConf,
+			Config:   &conf,
 			Metrics:  &pfxRegistry,
 			Limit:    lim,
 		}
 		dustdevil.Handlers[i] = &h
-		go h.Start()
+		waitdelay.Use()
+		go func() {
+			defer waitdelay.Done()
+			h.Start()
+		}()
 		logrus.Infof("Launched Dustdevil handler #%d", i)
 	}
 
 	// start kafka consumer
-	go erebos.Consumer(
-		&ddConf,
-		dustdevil.Dispatch,
-		consumerShutdown,
-		consumerExit,
-		handlerDeath,
-	)
+	waitdelay.Use()
+	go func() {
+		defer waitdelay.Done()
+		erebos.Consumer(
+			&conf,
+			dustdevil.Dispatch,
+			consumerShutdown,
+			consumerExit,
+			handlerDeath,
+		)
+	}()
 
 	// the main loop
 	fault := false
@@ -160,7 +182,9 @@ runloop:
 	// close all handlers
 	close(ms.Shutdown)
 	close(consumerShutdown)
-	<-consumerExit // not safe to close InputChannel before consumer is gone
+
+	// not safe to close InputChannel before consumer is gone
+	<-consumerExit
 	for i := range dustdevil.Handlers {
 		close(dustdevil.Handlers[i].ShutdownChannel())
 		close(dustdevil.Handlers[i].InputChannel())
@@ -181,7 +205,7 @@ drainloop:
 
 	// give goroutines that were blocked on handlerDeath channel
 	// a chance to exit
-	<-time.After(time.Millisecond * 10)
+	waitdelay.Wait()
 	logrus.Infoln(`DUSTDEVIL shutdown complete`)
 	if fault {
 		os.Exit(1)

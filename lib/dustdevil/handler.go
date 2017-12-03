@@ -13,6 +13,7 @@ import (
 
 	resty "gopkg.in/resty.v0"
 
+	"github.com/mjolnir42/delay"
 	"github.com/mjolnir42/erebos"
 )
 
@@ -34,6 +35,7 @@ func (d *DustDevil) Start() {
 		SetHeader(`Content-Type`, `application/json`).
 		SetContentLength(true)
 
+	d.delay = delay.NewDelay()
 	d.run()
 }
 
