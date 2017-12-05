@@ -32,6 +32,10 @@ runloop:
 			d.delay.Use()
 			go func() {
 				defer d.delay.Done()
+				if d.Config.DustDevil.ForwardElastic {
+					d.processElastic(msg)
+					return
+				}
 				d.process(msg)
 			}()
 		}
