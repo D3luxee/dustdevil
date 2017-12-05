@@ -51,7 +51,6 @@ func (d *DustDevil) process(msg *erebos.Transport) {
 
 	// acquire resource limit before issuing the POST request
 	d.Limit.Start()
-	defer d.Limit.Done()
 
 	// timeout must be reset before every request
 	r := d.client.SetTimeout(
@@ -62,6 +61,10 @@ func (d *DustDevil) process(msg *erebos.Transport) {
 	// make HTTP POST request
 	resp, err := r.SetBody(outMsg).
 		Post(d.Config.DustDevil.Endpoint)
+
+	// release resource limit
+	d.Limit.Done()
+
 	// check HTTP response
 	if err != nil {
 		// signal main to shut down
