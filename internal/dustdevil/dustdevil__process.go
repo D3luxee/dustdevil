@@ -10,9 +10,9 @@ package dustdevil // import "github.com/mjolnir42/dustdevil/internal/dustdevil"
 
 import (
 	"encoding/json"
+	"fmt"
 	"time"
 
-	"github.com/Sirupsen/logrus"
 	"github.com/mjolnir42/erebos"
 	"github.com/mjolnir42/legacy"
 	metrics "github.com/rcrowley/go-metrics"
@@ -26,11 +26,7 @@ func (d *DustDevil) process(msg *erebos.Transport) {
 	// unmarshal message
 	batch := legacy.MetricBatch{}
 	if err = json.Unmarshal(msg.Value, &batch); err != nil {
-		d.delay.Use()
-		go func() {
-			defer d.delay.Done()
-			d.commit(msg)
-		}()
+		// signal main to shut down
 		d.Death <- err
 		<-d.Shutdown
 		return
@@ -47,11 +43,7 @@ func (d *DustDevil) process(msg *erebos.Transport) {
 
 	var outMsg []byte
 	if outMsg, err = batch.MarshalJSON(); err != nil {
-		d.delay.Use()
-		go func() {
-			defer d.delay.Done()
-			d.commit(msg)
-		}()
+		// signal main to shut down
 		d.Death <- err
 		<-d.Shutdown
 		return
@@ -72,18 +64,15 @@ func (d *DustDevil) process(msg *erebos.Transport) {
 		Post(d.Config.DustDevil.Endpoint)
 	// check HTTP response
 	if err != nil {
-		d.delay.Use()
-		go func() {
-			defer d.delay.Done()
-			d.commit(msg)
-		}()
 		// signal main to shut down
 		d.Death <- err
 		<-d.Shutdown
 		return
 	}
 	if resp.StatusCode() > 299 {
-		logrus.Warnf("HTTP response was: %s", resp.Status())
+		// signal main to shut down
+		d.Death <- fmt.Errorf("HTTP response was: %s", resp.Status())
+		<-d.Shutdown
 		return
 	}
 	out.Mark(1)
