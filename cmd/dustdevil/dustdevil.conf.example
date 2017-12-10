@@ -42,6 +42,25 @@ legacy: {
         metrics.debug.frequency.seconds: 30
 }
 
+# redis settings
+redis: {
+    # redis server address
+    connect: 'localhost:6379'
+    # redis database to store records in
+    db: '0'
+    # redis connect password
+    password: 'sikrit'
+    # expire time for cache records
+    cache.timeout.seconds: 1800
+}
+
+# profile server settings
+eyewall: {
+    host: 'localhost'
+    port: '7777'
+    path: 'api/v1/configuration'
+}
+
 # misc settings
 misc: {
         # produce metrics on metricsocket

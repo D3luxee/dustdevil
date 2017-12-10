@@ -12,6 +12,7 @@ package dustdevil // import "github.com/mjolnir42/dustdevil/internal/dustdevil"
 import (
 	"github.com/mjolnir42/delay"
 	"github.com/mjolnir42/erebos"
+	"github.com/mjolnir42/eyewall"
 	"github.com/mjolnir42/limit"
 	metrics "github.com/rcrowley/go-metrics"
 	resty "gopkg.in/resty.v0"
@@ -31,10 +32,12 @@ type DustDevil struct {
 	Shutdown chan struct{}
 	Death    chan error
 	Config   *erebos.Config
-	client   *resty.Client
 	Metrics  *metrics.Registry
 	Limit    *limit.Limit
-	delay    *delay.Delay
+	// unexported
+	client *resty.Client
+	delay  *delay.Delay
+	lookup *eyewall.Lookup
 }
 
 // commit marks a message as fully processed

@@ -15,6 +15,7 @@ import (
 
 	"github.com/mjolnir42/delay"
 	"github.com/mjolnir42/erebos"
+	"github.com/mjolnir42/eyewall"
 )
 
 // Implementation of the erebos.Handler interface
@@ -34,6 +35,9 @@ func (d *DustDevil) Start() {
 				time.Millisecond).
 		SetHeader(`Content-Type`, `application/json`).
 		SetContentLength(true)
+
+	d.lookup = eyewall.NewLookup(d.Config)
+	defer d.lookup.Close()
 
 	d.delay = delay.NewDelay()
 	d.run()

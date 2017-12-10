@@ -23,6 +23,24 @@ func (d *DustDevil) process(msg *erebos.Transport) {
 	var err error
 	out := metrics.GetOrRegisterMeter(`/output/messages.per.second`, *d.Metrics)
 
+	// handle heartbeat messages
+	if erebos.IsHeartbeat(msg) {
+		d.delay.Use()
+		go func() {
+			d.lookup.Heartbeat(func() string {
+				switch d.Config.Misc.InstanceName {
+				case ``:
+					return `dustdevil`
+				default:
+					return fmt.Sprintf("dustdevil/%s",
+						d.Config.Misc.InstanceName)
+				}
+			}(), d.Num, msg.Value)
+			d.delay.Done()
+		}()
+		return
+	}
+
 	// unmarshal message
 	batch := legacy.MetricBatch{}
 	if err = json.Unmarshal(msg.Value, &batch); err != nil {
