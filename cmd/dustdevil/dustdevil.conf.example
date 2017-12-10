@@ -87,4 +87,6 @@ dustdevil: {
         strip.string.metrics: true
         # limit of concurrent POST requests, 0 for unlimited
         post.request.concurrency.limit: 128
+        # set to true if the api endpoint is ElasticSearch
+        api.endpoint.is.elasticsearch: false
 }
