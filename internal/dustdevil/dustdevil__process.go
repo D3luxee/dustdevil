@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/Sirupsen/logrus"
 	"github.com/mjolnir42/erebos"
 	"github.com/mjolnir42/legacy"
 	metrics "github.com/rcrowley/go-metrics"
@@ -20,8 +21,13 @@ import (
 
 // process is the handler for posting a MetricBatch
 func (d *DustDevil) process(msg *erebos.Transport) {
-	var err error
-	out := metrics.GetOrRegisterMeter(`/output/messages.per.second`, *d.Metrics)
+	if msg == nil || msg.Value == nil {
+		logrus.Warnf("Ignoring empty message from: %d", msg.HostID)
+		if msg != nil {
+			d.commit(msg)
+		}
+		return
+	}
 
 	// handle heartbeat messages
 	if erebos.IsHeartbeat(msg) {
@@ -42,6 +48,7 @@ func (d *DustDevil) process(msg *erebos.Transport) {
 	}
 
 	// unmarshal message
+	var err error
 	batch := legacy.MetricBatch{}
 	if err = json.Unmarshal(msg.Value, &batch); err != nil {
 		// signal main to shut down
@@ -96,7 +103,10 @@ func (d *DustDevil) process(msg *erebos.Transport) {
 		<-d.Shutdown
 		return
 	}
-	out.Mark(1)
+
+	metrics.GetOrRegisterMeter(`/output/messages.per.second`,
+		*d.Metrics).Mark(1)
+
 	d.delay.Use()
 	go func() {
 		defer d.delay.Done()
