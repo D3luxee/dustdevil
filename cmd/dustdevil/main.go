@@ -118,11 +118,9 @@ func main() {
 	ms.SetDebugFormatter(dustdevil.DebugFormatMetrics)
 	if conf.Misc.ProduceMetrics {
 		logrus.Info(`Launched metrics producer socket`)
-		waitdelay.Use()
-		go func() {
-			defer waitdelay.Done()
+		waitdelay.Go(func() {
 			ms.Run()
-		}()
+		})
 	}
 
 	// acquire shared concurrency limit
@@ -141,18 +139,14 @@ func main() {
 			Limit:    lim,
 		}
 		dustdevil.Handlers[i] = &h
-		waitdelay.Use()
-		go func() {
-			defer waitdelay.Done()
+		waitdelay.Go(func() {
 			h.Start()
-		}()
+		})
 		logrus.Infof("Launched Dustdevil handler #%d", i)
 	}
 
 	// start kafka consumer
-	waitdelay.Use()
-	go func() {
-		defer waitdelay.Done()
+	waitdelay.Go(func() {
 		erebos.Consumer(
 			&conf,
 			dustdevil.Dispatch,
@@ -160,7 +154,7 @@ func main() {
 			consumerExit,
 			handlerDeath,
 		)
-	}()
+	})
 
 	heartbeat := time.Tick(10 * time.Second)
 
@@ -181,11 +175,10 @@ runloop:
 		case <-heartbeat:
 			for i := range dustdevil.Handlers {
 				// do not block on heartbeats
-				waitdelay.Use()
-				go func(i int) {
-					dustdevil.Handlers[i].InputChannel() <- erebos.NewHeartbeat()
-					waitdelay.Done()
-				}(i)
+				waitdelay.Go(func() {
+					j := i
+					dustdevil.Handlers[j].InputChannel() <- erebos.NewHeartbeat()
+				})
 			}
 		}
 	}

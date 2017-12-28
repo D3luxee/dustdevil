@@ -29,15 +29,13 @@ runloop:
 				continue runloop
 			}
 			in.Mark(1)
-			d.delay.Use()
-			go func() {
-				defer d.delay.Done()
+			d.delay.Go(func() {
 				if d.Config.DustDevil.ForwardElastic {
 					d.processElastic(msg)
 					return
 				}
 				d.process(msg)
-			}()
+			})
 		}
 	}
 	// compiler: unreachable code

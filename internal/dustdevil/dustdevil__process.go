@@ -31,8 +31,7 @@ func (d *DustDevil) process(msg *erebos.Transport) {
 
 	// handle heartbeat messages
 	if erebos.IsHeartbeat(msg) {
-		d.delay.Use()
-		go func() {
+		d.delay.Go(func() {
 			d.lookup.Heartbeat(func() string {
 				switch d.Config.Misc.InstanceName {
 				case ``:
@@ -42,8 +41,7 @@ func (d *DustDevil) process(msg *erebos.Transport) {
 						d.Config.Misc.InstanceName)
 				}
 			}(), d.Num, msg.Value)
-			d.delay.Done()
-		}()
+		})
 		return
 	}
 
@@ -107,11 +105,9 @@ func (d *DustDevil) process(msg *erebos.Transport) {
 	metrics.GetOrRegisterMeter(`/output/messages.per.second`,
 		*d.Metrics).Mark(1)
 
-	d.delay.Use()
-	go func() {
-		defer d.delay.Done()
+	d.delay.Go(func() {
 		d.commit(msg)
-	}()
+	})
 }
 
 // vim: ts=4 sw=4 sts=4 noet fenc=utf-8 ffs=unix
