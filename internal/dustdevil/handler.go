@@ -39,7 +39,7 @@ func (d *DustDevil) Start() {
 	d.lookup = eyewall.NewLookup(d.Config)
 	defer d.lookup.Close()
 
-	d.delay = delay.NewDelay()
+	d.delay = delay.New()
 	d.run()
 }
 

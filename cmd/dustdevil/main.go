@@ -96,7 +96,7 @@ func main() {
 	consumerExit := make(chan struct{})
 
 	// setup goroutine waiting policy
-	waitdelay := delay.NewDelay()
+	waitdelay := delay.New()
 
 	// setup metrics
 	var metricPrefix string
@@ -126,7 +126,7 @@ func main() {
 	}
 
 	// acquire shared concurrency limit
-	lim := limit.NewLimit(conf.DustDevil.ConcurrencyLimit)
+	lim := limit.New(conf.DustDevil.ConcurrencyLimit)
 
 	// start application handlers
 	for i := 0; i < runtime.NumCPU(); i++ {
