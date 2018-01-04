@@ -9,6 +9,7 @@
 package dustdevil // import "github.com/mjolnir42/dustdevil/internal/dustdevil"
 
 import (
+	"sync"
 	"time"
 
 	resty "gopkg.in/resty.v0"
@@ -40,6 +41,7 @@ func (d *DustDevil) Start() {
 	defer d.lookup.Close()
 
 	d.delay = delay.New()
+	d.assemblyLock = sync.Mutex{}
 	d.run()
 }
 

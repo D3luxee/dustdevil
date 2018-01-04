@@ -18,9 +18,9 @@ import (
 	metrics "github.com/rcrowley/go-metrics"
 )
 
-// processElastic is the handler for posting a MetricBatch to
+// processBatchElastic is the handler for posting a MetricBatch to
 // Elasticsearch
-func (d *DustDevil) processElastic(msg *erebos.Transport) {
+func (d *DustDevil) processBatchElastic(msg *erebos.Transport) {
 	var err error
 	out := metrics.GetOrRegisterMeter(`/output/messages.per.second`, *d.Metrics)
 

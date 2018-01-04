@@ -19,8 +19,8 @@ import (
 	metrics "github.com/rcrowley/go-metrics"
 )
 
-// process is the handler for posting a MetricBatch
-func (d *DustDevil) process(msg *erebos.Transport) {
+// processBatch is the handler for posting a MetricBatch
+func (d *DustDevil) processBatch(msg *erebos.Transport) {
 	if msg == nil || msg.Value == nil {
 		logrus.Warnf("Ignoring empty message from: %d", msg.HostID)
 		if msg != nil {

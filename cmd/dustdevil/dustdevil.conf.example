@@ -89,4 +89,7 @@ dustdevil: {
         post.request.concurrency.limit: 128
         # set to true if the api endpoint is ElasticSearch
         api.endpoint.is.elasticsearch: false
+        # set to either 'batch' or 'split' depending on the content
+        # of the consumed kafka topic
+        input.format: split
 }

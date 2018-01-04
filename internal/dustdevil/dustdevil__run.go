@@ -9,6 +9,8 @@
 package dustdevil // import "github.com/mjolnir42/dustdevil/internal/dustdevil"
 
 import (
+	"time"
+
 	metrics "github.com/rcrowley/go-metrics"
 )
 
@@ -22,6 +24,13 @@ runloop:
 		case <-d.Shutdown:
 			// drain input channel which will be closed by main
 			goto drainloop
+		case <-time.Tick(20 * time.Second):
+			switch d.Config.DustDevil.InputFormat {
+			case `split`:
+				d.assemblyLock.Lock()
+				d.release()
+				d.assemblyLock.Unlock()
+			}
 		case msg := <-d.Input:
 			if msg == nil {
 				// we read the closed input channel, skip to read the
@@ -30,11 +39,18 @@ runloop:
 			}
 			in.Mark(1)
 			d.delay.Go(func() {
-				if d.Config.DustDevil.ForwardElastic {
-					d.processElastic(msg)
-					return
+				switch d.Config.DustDevil.InputFormat {
+				case `batch`:
+					if d.Config.DustDevil.ForwardElastic {
+						d.processBatchElastic(msg)
+						return
+					}
+					d.processBatch(msg)
+				case `split`:
+					d.assemblyLock.Lock()
+					d.assembleSplit(msg)
+					d.assemblyLock.Unlock()
 				}
-				d.process(msg)
 			})
 		}
 	}
@@ -49,7 +65,12 @@ drainloop:
 				break drainloop
 			}
 			in.Mark(1)
-			d.process(msg)
+			switch d.Config.DustDevil.InputFormat {
+			case `batch`:
+				d.processBatch(msg)
+			case `split`:
+				d.assembleSplit(msg)
+			}
 		}
 	}
 	d.delay.Wait()

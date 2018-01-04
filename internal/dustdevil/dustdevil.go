@@ -10,9 +10,13 @@
 package dustdevil // import "github.com/mjolnir42/dustdevil/internal/dustdevil"
 
 import (
+	"sync"
+	"time"
+
 	"github.com/mjolnir42/delay"
 	"github.com/mjolnir42/erebos"
 	"github.com/mjolnir42/eyewall"
+	"github.com/mjolnir42/legacy"
 	"github.com/mjolnir42/limit"
 	metrics "github.com/rcrowley/go-metrics"
 	resty "gopkg.in/resty.v0"
@@ -35,9 +39,12 @@ type DustDevil struct {
 	Metrics  *metrics.Registry
 	Limit    *limit.Limit
 	// unexported
-	client *resty.Client
-	delay  *delay.Delay
-	lookup *eyewall.Lookup
+	client         *resty.Client
+	delay          *delay.Delay
+	lookup         *eyewall.Lookup
+	assembly       map[int]map[time.Time]legacy.MetricData
+	assemblyLock   sync.Mutex
+	assemblyCommit map[int][]*erebos.Transport
 }
 
 // commit marks a message as fully processed
