@@ -64,7 +64,8 @@ type Config struct {
 	// Twister is the namespace with configuration options relating to
 	// the splitting of metric batches
 	Twister struct {
-		HandlerQueueLength int `json:"handler.queue.length,string"`
+		HandlerQueueLength int      `json:"handler.queue.length,string"`
+		QueryMetrics       []string `json:"query.metric.profiles"`
 	} `json:"twister"`
 	// Mistral is the namespace with configuration options relating to
 	// accepting incoming messages via HTTP API
@@ -85,25 +86,31 @@ type Config struct {
 		RequestTimeout     int    `json:"request.timeout.ms,string"`
 		StripStringMetrics bool   `json:"strip.string.metrics,string"`
 		ConcurrencyLimit   uint32 `json:"post.request.concurrency.limit,string"`
+		ForwardElastic     bool   `json:"api.endpoint.is.elasticsearch,string"`
+		InputFormat        string `json:"input.format,string"`
 	} `json:"dustdevil"`
 	// Cyclone is the namespace with configuration options relating
 	// to threshold evaluation of metrics
 	Cyclone struct {
-		MetricsMaxAge      int    `json:"metrics.max.age.minutes,string"`
-		DestinationURI     string `json:"alarming.destination"`
-		LookupHost         string `json:"lookup.host"`
-		LookupPort         string `json:"lookup.port"`
-		LookupPath         string `json:"lookup.path"`
-		TestMode           bool   `json:"testmode,string"`
-		APIVersion         string `json:"api.version"`
-		HandlerQueueLength int    `json:"handler.queue.length,string"`
+		MetricsMaxAge      int      `json:"metrics.max.age.minutes,string"`
+		DestinationURI     string   `json:"alarming.destination"`
+		TestMode           bool     `json:"testmode,string"`
+		APIVersion         string   `json:"api.version"`
+		HandlerQueueLength int      `json:"handler.queue.length,string"`
+		ConcurrencyLimit   uint32   `json:"post.request.concurrency.limit,string"`
+		RetryCount         int      `json:"post.request.retry.count,string"`
+		RetryMinWaitTime   int      `json:"retry.min.wait.time.ms,string"`
+		RetryMaxWaitTime   int      `json:"retry.max.wait.time.ms,string"`
+		RequestTimeout     int      `json:"request.timeout.ms,string"`
+		DiscardMetrics     []string `json:"discard.metrics"`
 	} `json:"cyclone"`
 	// Redis is the namespace with configuration options relating
 	// to Redis
 	Redis struct {
-		Connect  string `json:"connect"`
-		Password string `json:"password"`
-		DB       int64  `json:"db.number,string"`
+		Connect      string `json:"connect"`
+		Password     string `json:"password"`
+		DB           int    `json:"db.number,string"`
+		CacheTimeout uint64 `json:"cache.timeout.seconds,string"`
 	} `json:"redis"`
 	// Legacy is the namespace with configuration options relating to
 	// legacy data formats
@@ -130,6 +137,22 @@ type Config struct {
 		// Name of the application instance
 		InstanceName string `json:"instance.name"`
 	} `json:"misc"`
+	// Hurricane is the namespace with configuration options relating
+	// to the calculation of derived metrics
+	Hurricane struct {
+		HandlerQueueLength int  `json:"handler.queue.length,string"`
+		DeriveCTX          bool `json:"derive.ctx.metrics,string"`
+		DeriveCPU          bool `json:"derive.cpu.metrics,string"`
+		DeriveMEM          bool `json:"derive.mem.metrics,string"`
+		DeriveDISK         bool `json:"derive.disk.metrics,string"`
+	} `json:"hurricane"`
+	// Eyewall is the namespace for configuration options relating to
+	// the eye lookup client library
+	Eyewall struct {
+		Host string `json:"host"`
+		Port string `json:"port"`
+		Path string `json:"path"`
+	} `json:"eyewall"`
 }
 
 // FromFile sets Config c based on the file contents
