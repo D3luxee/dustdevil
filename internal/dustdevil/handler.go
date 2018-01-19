@@ -6,14 +6,17 @@
  * that can be found in the LICENSE file.
  */
 
-package dustdevil // import "github.com/mjolnir42/dustdevil/lib/dustdevil"
+package dustdevil // import "github.com/mjolnir42/dustdevil/internal/dustdevil"
 
 import (
+	"sync"
 	"time"
 
 	resty "gopkg.in/resty.v0"
 
+	"github.com/mjolnir42/delay"
 	"github.com/mjolnir42/erebos"
+	"github.com/mjolnir42/eyewall"
 )
 
 // Implementation of the erebos.Handler interface
@@ -34,6 +37,11 @@ func (d *DustDevil) Start() {
 		SetHeader(`Content-Type`, `application/json`).
 		SetContentLength(true)
 
+	d.lookup = eyewall.NewLookup(d.Config)
+	defer d.lookup.Close()
+
+	d.delay = delay.New()
+	d.assemblyLock = sync.Mutex{}
 	d.run()
 }
 

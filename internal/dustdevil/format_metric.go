@@ -6,7 +6,7 @@
  * that can be found in the LICENSE file.
  */
 
-package dustdevil // import "github.com/mjolnir42/dustdevil/lib/dustdevil"
+package dustdevil // import "github.com/mjolnir42/dustdevil/internal/dustdevil"
 
 import (
 	"fmt"
