@@ -12,8 +12,7 @@ import (
 	"sync"
 	"time"
 
-	resty "gopkg.in/resty.v0"
-
+	"github.com/go-resty/resty"
 	"github.com/mjolnir42/delay"
 	"github.com/mjolnir42/erebos"
 	"github.com/mjolnir42/eyewall"

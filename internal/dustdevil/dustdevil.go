@@ -13,13 +13,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-resty/resty"
 	"github.com/mjolnir42/delay"
 	"github.com/mjolnir42/erebos"
 	"github.com/mjolnir42/eyewall"
 	"github.com/mjolnir42/legacy"
 	"github.com/mjolnir42/limit"
 	metrics "github.com/rcrowley/go-metrics"
-	resty "gopkg.in/resty.v0"
 )
 
 // Handlers is the registry of running application handlers
