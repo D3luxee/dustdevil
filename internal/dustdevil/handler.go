@@ -15,7 +15,7 @@ import (
 	"github.com/go-resty/resty"
 	"github.com/mjolnir42/delay"
 	"github.com/mjolnir42/erebos"
-	"github.com/mjolnir42/eyewall"
+	wall "github.com/mjolnir42/eye/lib/eye.wall"
 )
 
 // Implementation of the erebos.Handler interface
@@ -36,7 +36,7 @@ func (d *DustDevil) Start() {
 		SetHeader(`Content-Type`, `application/json`).
 		SetContentLength(true)
 
-	d.lookup = eyewall.NewLookup(d.Config)
+	d.lookup = wall.NewLookup(d.Config, `dustdevil`)
 	defer d.lookup.Close()
 
 	d.delay = delay.New()

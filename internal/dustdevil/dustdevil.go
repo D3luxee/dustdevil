@@ -16,7 +16,7 @@ import (
 	"github.com/go-resty/resty"
 	"github.com/mjolnir42/delay"
 	"github.com/mjolnir42/erebos"
-	"github.com/mjolnir42/eyewall"
+	wall "github.com/mjolnir42/eye/lib/eye.wall"
 	"github.com/mjolnir42/legacy"
 	"github.com/mjolnir42/limit"
 	metrics "github.com/rcrowley/go-metrics"
@@ -41,7 +41,7 @@ type DustDevil struct {
 	// unexported
 	client         *resty.Client
 	delay          *delay.Delay
-	lookup         *eyewall.Lookup
+	lookup         *wall.Lookup
 	assembly       map[int]map[time.Time]legacy.MetricData
 	assemblyLock   sync.Mutex
 	assemblyCommit map[int][]*erebos.Transport
