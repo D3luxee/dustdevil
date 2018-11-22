@@ -7,7 +7,7 @@
  */
 
 // Package dustdevil implements the DustDevil metric forwarder
-package dustdevil // import "github.com/mjolnir42/dustdevil/internal/dustdevil"
+package dustdevil // import "github.com/solnx/dustdevil/internal/dustdevil"
 
 import (
 	"sync"
@@ -16,7 +16,7 @@ import (
 	"github.com/go-resty/resty"
 	"github.com/mjolnir42/delay"
 	"github.com/mjolnir42/erebos"
-	wall "github.com/mjolnir42/eye/lib/eye.wall"
+	wall "github.com/solnx/eye/lib/eye.wall"
 	"github.com/mjolnir42/legacy"
 	"github.com/mjolnir42/limit"
 	metrics "github.com/rcrowley/go-metrics"
