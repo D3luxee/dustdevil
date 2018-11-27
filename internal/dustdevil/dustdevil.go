@@ -16,10 +16,10 @@ import (
 	"github.com/go-resty/resty"
 	"github.com/mjolnir42/delay"
 	"github.com/mjolnir42/erebos"
-	wall "github.com/solnx/eye/lib/eye.wall"
-	"github.com/mjolnir42/legacy"
 	"github.com/mjolnir42/limit"
 	metrics "github.com/rcrowley/go-metrics"
+	wall "github.com/solnx/eye/lib/eye.wall"
+	"github.com/solnx/legacy"
 )
 
 // Handlers is the registry of running application handlers

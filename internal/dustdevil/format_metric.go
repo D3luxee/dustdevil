@@ -12,8 +12,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/mjolnir42/legacy"
 	metrics "github.com/rcrowley/go-metrics"
+	"github.com/solnx/legacy"
 )
 
 // FormatMetrics is the formatting function to export DustDevil metrics

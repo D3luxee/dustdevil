@@ -21,11 +21,11 @@ import (
 	"github.com/Sirupsen/logrus"
 	"github.com/client9/reopen"
 	"github.com/mjolnir42/delay"
-	"github.com/solnx/dustdevil/internal/dustdevil"
 	"github.com/mjolnir42/erebos"
-	"github.com/mjolnir42/legacy"
 	"github.com/mjolnir42/limit"
 	metrics "github.com/rcrowley/go-metrics"
+	"github.com/solnx/dustdevil/internal/dustdevil"
+	"github.com/solnx/legacy"
 )
 
 var githash, shorthash, builddate, buildtime string

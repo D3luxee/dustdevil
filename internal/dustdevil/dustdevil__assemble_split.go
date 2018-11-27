@@ -15,7 +15,7 @@ import (
 
 	"github.com/Sirupsen/logrus"
 	"github.com/mjolnir42/erebos"
-	"github.com/mjolnir42/legacy"
+	"github.com/solnx/legacy"
 )
 
 // assembleSplit is the handler for assembling MetricSplit messages

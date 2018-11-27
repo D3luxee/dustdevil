@@ -15,8 +15,8 @@ import (
 
 	"github.com/Sirupsen/logrus"
 	"github.com/mjolnir42/erebos"
-	"github.com/mjolnir42/legacy"
 	metrics "github.com/rcrowley/go-metrics"
+	"github.com/solnx/legacy"
 )
 
 // processBatch is the handler for posting a MetricBatch

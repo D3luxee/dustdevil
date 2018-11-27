@@ -15,8 +15,8 @@ import (
 	"time"
 
 	"github.com/mjolnir42/erebos"
-	"github.com/mjolnir42/legacy"
 	metrics "github.com/rcrowley/go-metrics"
+	"github.com/solnx/legacy"
 )
 
 // postResult is a transport wrapper for assemblePost functions
